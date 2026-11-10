@@ -1,0 +1,9 @@
+# Local build output and editor files
+_site/
+*.pdf
+.DS_Store
+*.swp
+*.swo
+*~
+__pycache__/
+.venv/
