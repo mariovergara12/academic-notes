@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="A searchable collection of compiled computer science and mathematics notes.">
+  <title>Academic Notes</title>
+  <link rel="stylesheet" href="styles.css">
+  <script src="app.js" defer></script>
+</head>
+<body>
+  <div class="shell">
+    <header class="header">
+      <div class="eyebrow">STUDY LIBRARY</div>
+      <h1>Academic Notes<span class="title-period">.</span></h1>
+      <p class="intro">My course notes, compiled from Typst into PDFs. Browse by class or search topics, algorithms, definitions, and formulas.</p>
+    </header>
+    <main>
+      <section class="toolbar" aria-label="Find notes">
+        <div class="search-wrap">
+          <label for="search">Search the notes</label>
+          <input id="search" type="search" placeholder="Try AVL, Dijkstra, Karatsuba, variation of parameters…" autocomplete="off">
+        </div>
+        <div class="filter-wrap">
+          <label for="course">Course</label>
+          <select id="course"><option value="">All courses</option></select>
+        </div>
+      </section>
+      <div class="meta-line">
+        <span id="status" aria-live="polite">Loading notes…</span>
+        <span id="updated"></span>
+      </div>
+      <div id="results"></div>
+    </main>
+    <footer>
+      <span>Written in Typst · Published with GitHub Pages</span>
+      <a href="https://github.com/mariovergara12/academic-notes">View source</a>
+    </footer>
+  </div>
+</body>
+</html>
