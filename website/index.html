@@ -3,39 +3,53 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="description" content="A searchable collection of compiled computer science and mathematics notes.">
-  <title>Academic Notes</title>
+  <meta name="description" content="Mario Vergara’s personal notes, organized by subject and course.">
+  <meta name="theme-color" content="#f8f9f6">
+  <title>notes · Mario Vergara</title>
+  <script src="theme.js"></script>
+  <link rel="icon" href="favicon.svg" type="image/svg+xml">
   <link rel="stylesheet" href="styles.css">
-  <script src="app.js" defer></script>
+  <script type="module" src="app.js"></script>
 </head>
 <body>
-  <div class="shell">
-    <header class="header">
-      <div class="eyebrow">STUDY LIBRARY</div>
-      <h1>Academic Notes<span class="title-period">.</span></h1>
-      <p class="intro">My course notes, compiled from Typst into PDFs. Browse by class or search topics, algorithms, definitions, and formulas.</p>
+  <a class="skip-link" href="#main">Skip to content</a>
+  <button class="sidebar-backdrop" id="backdrop" aria-label="Close navigation" hidden></button>
+  <aside class="sidebar" id="sidebar" aria-label="Library navigation">
+    <button id="close-navigation" class="icon-button mobile-close" aria-label="Close navigation"><span data-icon="close"></span></button>
+    <a class="brand" href="#dashboard" aria-label="notes dashboard"><img class="brand-mark" src="favicon.svg" width="40" height="40" alt=""><span class="sidebar-copy">notes</span></a>
+    <button class="sidebar-search" id="sidebar-search" aria-label="Find a note"><span data-icon="search"></span><span class="sidebar-copy">Find a note</span><kbd class="sidebar-copy">/</kbd></button>
+    <div class="nav-label sidebar-copy">WORKSPACE</div>
+    <nav id="primary-nav" class="nav-list" aria-label="Main">
+      <a href="#dashboard" data-view="dashboard"><span data-icon="dashboard"></span><span class="sidebar-copy">Dashboard</span></a>
+      <a href="#all" data-view="all" id="all-notes-link"><span data-icon="files"></span><span class="sidebar-copy">All Notes</span><span id="nav-count" class="nav-count sidebar-copy"></span></a>
+    </nav>
+    <details class="course-nav" open>
+      <summary class="nav-label sidebar-copy">COURSE COLLECTIONS <span data-icon="chevron"></span></summary>
+      <nav id="course-nav" class="nav-list" aria-label="Course collections"></nav>
+    </details>
+    <div class="sidebar-bottom">
+      <a class="profile" href="https://github.com/mariovergara12"><span class="avatar">MV</span><span class="sidebar-copy">Mario Vergara<small>Notes & explorations</small></span><span class="sidebar-copy" data-icon="external"></span></a>
+    </div>
+  </aside>
+  <div class="workspace">
+    <header class="topbar">
+      <div class="topbar-start"><button id="sidebar-toggle" class="icon-button" aria-label="Collapse navigation" aria-controls="sidebar" aria-expanded="true"><span data-icon="panel"></span></button><span class="breadcrumb">Workspace <span>/</span> <span id="breadcrumb">Dashboard</span></span></div>
+      <div class="topbar-end"><a class="source-link" href="https://github.com/mariovergara12/academic-notes"><span data-icon="github"></span><span>Source</span></a><span class="topbar-divider"></span><button id="theme-toggle" class="icon-button" aria-label="Switch to dark theme"><span data-icon="moon"></span></button></div>
     </header>
-    <main>
-      <section class="toolbar" aria-label="Find notes">
-        <div class="search-wrap">
-          <label for="search">Search the notes</label>
-          <input id="search" type="search" placeholder="Try AVL, Dijkstra, Karatsuba, variation of parameters…" autocomplete="off">
-        </div>
-        <div class="filter-wrap">
-          <label for="course">Course</label>
-          <select id="course"><option value="">All courses</option></select>
-        </div>
-      </section>
-      <div class="meta-line">
-        <span id="status" aria-live="polite">Loading notes…</span>
-        <span id="updated"></span>
+    <main id="main" tabindex="-1">
+      <div id="page-intro" class="page-intro"><div class="eyebrow" id="eyebrow">PERSONAL NOTES</div><h1 id="page-title">Library<span>.</span></h1><p id="page-description" hidden></p></div>
+      <form id="search-form" role="search" class="search-box"><span data-icon="search"></span><label for="search" class="sr-only">Search notes, topics, and source text</label><input id="search" type="search" placeholder="Search notes, topics, or a theorem…" autocomplete="off" aria-keyshortcuts="/"><kbd aria-hidden="true">/</kbd></form>
+      <div id="load-status" class="load-status" role="status">Loading your library…</div>
+      <div id="dashboard" hidden>
+        <div id="stats" class="stats" aria-label="Library statistics"></div>
+        <section class="collections-section" aria-labelledby="collections-title"><div class="section-heading"><h2 id="collections-title">Course collections</h2><a href="#all" class="text-link">Explore all notes <span data-icon="arrow"></span></a></div><div id="collections"></div></section>
+        <section class="recent-section" aria-labelledby="recent-title"><div class="section-heading"><h2 id="recent-title">Recently added</h2><a href="#all" class="text-link">View all <span data-icon="arrow"></span></a></div><p class="section-caption" id="recent-description"></p><div id="recent-notes" class="recent-list"></div></section>
       </div>
-      <div id="results"></div>
+      <div id="library" hidden><div class="filters"><div><label for="course">Course</label><select id="course"><option value="">All courses</option></select></div><div><label for="topic">Topic</label><select id="topic"><option value="">All topics</option></select></div><div><label for="sort">Sort by</label><select id="sort"><option value="title">Title: A–Z</option><option value="newest">Recently added</option></select></div><button id="clear-filters" class="text-button">Reset filters</button></div><div class="results-heading"><span id="result-status" role="status" aria-live="polite"></span><span class="format-label">COMPILED PDF NOTES</span></div><div id="results"></div></div>
+      <footer><span id="updated">Published with GitHub Pages</span></footer>
     </main>
-    <footer>
-      <span>Written in Typst · Published with GitHub Pages</span>
-      <a href="https://github.com/mariovergara12/academic-notes">View source</a>
-    </footer>
   </div>
+  <dialog id="document-dialog" aria-labelledby="document-title"><div class="document-header"><span class="badge">NOTE PREVIEW</span><button id="close-document" class="icon-button" aria-label="Close document preview"><span data-icon="close"></span></button></div><h2 id="document-title"></h2><p id="document-meta"></p><div class="document-actions"><a id="open-pdf" class="primary-button" target="_blank" rel="noopener noreferrer">Open PDF <span data-icon="external"></span><span class="sr-only"> in a new tab</span></a><a id="download-pdf" class="secondary-button" download>Download <span data-icon="download"></span></a></div><p class="preview-help">If the preview is unavailable, open or download the PDF above.</p><div id="pdf-preview"></div></dialog>
+  <noscript><p class="noscript">Enable JavaScript to search and browse the notes. You can also explore the <a href="https://github.com/mariovergara12/academic-notes/tree/main/notes">Typst sources on GitHub</a>.</p></noscript>
 </body>
 </html>

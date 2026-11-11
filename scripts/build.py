@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 """Compile every note under notes/ and generate a searchable static PDF library."""
 
-import html
 import json
 import os
 from pathlib import Path
@@ -21,6 +20,42 @@ OUTPUT = ROOT / "_site"
 def metadata(raw: str, key: str, fallback: str) -> str:
     match = re.search(r"\b" + re.escape(key) + r'\s*:\s*"([^"]+)"', raw)
     return match.group(1) if match else fallback
+
+
+def default_course(rel: Path) -> str:
+    """New notes use subject/course/topic/file; retain the known legacy layouts."""
+    legacy = {"dsa": "Data Structures & Algorithms", "diffeq": "Differential Equations",
+              "differential-equations": "Differential Equations"}
+    if rel.parts[0].lower() in legacy:
+        return legacy[rel.parts[0].lower()]
+    folder = rel.parts[1] if len(rel.parts) > 2 else (rel.parts[0] if len(rel.parts) > 1 else "General")
+    return folder.replace("-", " ").replace("_", " ").title()
+
+
+def addition_dates() -> dict[str, str]:
+    """Read real addition dates. Shallow/source-only checkouts have no reliable history."""
+    try:
+        shallow = subprocess.run(
+            ["git", "rev-parse", "--is-shallow-repository"], cwd=ROOT,
+            capture_output=True, text=True, timeout=10, check=True,
+        )
+        if shallow.stdout.strip() == "true":
+            return {}
+        history = subprocess.run(
+            ["git", "log", "--reverse", "--format=added:%aI", "--name-only",
+             "--diff-filter=A", "--", "notes"], cwd=ROOT,
+            capture_output=True, text=True, timeout=30, check=True,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return {}
+    dates = {}
+    current = ""
+    for line in history.stdout.splitlines():
+        if line.startswith("added:"):
+            current = line.removeprefix("added:")
+        elif line.startswith("notes/") and current:
+            dates.setdefault(line.removeprefix("notes/"), current)
+    return dates
 
 
 def report_to_actions(successes: int, failures: list, total: int) -> None:
@@ -50,6 +85,7 @@ def main() -> int:
 
     documents = []
     failures = []
+    added = addition_dates()
     sources = sorted(SOURCE.rglob("*.typ")) if SOURCE.exists() else []
 
     for source in sources:
@@ -84,19 +120,27 @@ def main() -> int:
             continue
 
         title = metadata(raw, "title", rel.stem.replace("-", " ").title())
-        course = metadata(raw, "course", rel.parts[0] if len(rel.parts) > 1 else "General")
+        course = metadata(raw, "course", default_course(rel))
         semester = metadata(raw, "semester", "")
         text = re.sub(r"(?s)```.*?```", " ", raw)
         text = re.sub(r"\s+", " ", text)
 
-        documents.append({
+        document = {
             "title": title,
             "course": course,
             "semester": semester,
             "path": rel.as_posix(),
             "url": "pdfs/" + quote(pdf_rel.as_posix(), safe="/"),
             "search": (title + " " + course + " " + semester + " " + text)[:60000],
-        })
+        }
+        if rel.as_posix() in added:
+            document["added"] = added[rel.as_posix()]
+        # Optional metadata extends the index without changing its existing fields.
+        for field in ("subject", "category", "topic"):
+            value = metadata(raw, field, "")
+            if value:
+                document[field] = value
+        documents.append(document)
         print(f"Compiled {rel} -> {pdf_rel}", flush=True)
 
     (OUTPUT / "notes.json").write_text(

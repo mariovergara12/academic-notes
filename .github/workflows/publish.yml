@@ -18,6 +18,8 @@ jobs:
     steps:
       - name: Check out notes
         uses: actions/checkout@v6
+        with:
+          fetch-depth: 0 # Real addition dates for the recently added collection.
 
       - name: Install Typst
         uses: typst-community/setup-typst@v5
