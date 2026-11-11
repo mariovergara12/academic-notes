@@ -5,13 +5,11 @@
   semester: "Fall 2026",
 )
 
-// Sources: Part 2, pp. 2–7; Part 1, pp. 23–24
-// This is a corrected and expanded study-note reconstruction, not a verbatim transcript.
 
 = Binary search tree (BST) property
 For each node with key $x$, every key in its left subtree is smaller than $x$, and every key in its right subtree is larger, assuming no duplicates. This *entire-subtree* property is stronger than only comparing immediate children.
 
-#image("../diagrams/bst-example.svg", width: 54%)
+#image("../diagrams/bst-example.svg", width: 50%)
 
 == Search
 ```cpp
