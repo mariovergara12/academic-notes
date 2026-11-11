@@ -2,6 +2,7 @@
 """Compile every note under notes/ and generate a searchable static PDF library."""
 
 import json
+import hashlib
 import os
 from pathlib import Path
 import re
@@ -30,6 +31,33 @@ def default_course(rel: Path) -> str:
         return legacy[rel.parts[0].lower()]
     folder = rel.parts[1] if len(rel.parts) > 2 else (rel.parts[0] if len(rel.parts) > 1 else "General")
     return folder.replace("-", " ").replace("_", " ").title()
+
+
+def version_assets(output: Path) -> dict[str, str]:
+    """Keep new HTML from loading cached assets from a previous deployment."""
+    versions = {}
+    # Dependencies come first: changing library.mjs must also change app.js's URL.
+    for name in ("library.mjs", "app.js", "theme.js", "styles.css", "favicon.svg"):
+        source = output / name
+        content = source.read_text(encoding="utf-8")
+        for dependency, versioned in versions.items():
+            for quote_mark in ("'", '"'):
+                content = content.replace(
+                    f"{quote_mark}./{dependency}{quote_mark}",
+                    f"{quote_mark}./{versioned}{quote_mark}",
+                )
+        digest = hashlib.sha256(content.encode("utf-8")).hexdigest()[:16]
+        versioned = f"{source.stem}.{digest}{source.suffix}"
+        (output / versioned).write_text(content, encoding="utf-8")
+        versions[name] = versioned
+
+    index = output / "index.html"
+    content = index.read_text(encoding="utf-8")
+    for name, versioned in versions.items():
+        for quote_mark in ("'", '"'):
+            content = content.replace(f"{quote_mark}{name}{quote_mark}", f"{quote_mark}{versioned}{quote_mark}")
+    index.write_text(content, encoding="utf-8")
+    return versions
 
 
 def addition_dates() -> dict[str, str]:
@@ -152,6 +180,7 @@ def main() -> int:
         encoding="utf-8",
     )
     (OUTPUT / ".nojekyll").write_text("", encoding="utf-8")
+    version_assets(OUTPUT)
     report_to_actions(len(documents), failures, len(sources))
     # Partial failures are explicitly reported; working notes still publish.
     return 0
