@@ -29,6 +29,14 @@ export function courseOf(doc) {
   if (LEGACY_COURSES.has(root)) return root === 'dsa' ? 'Data Structures & Algorithms' : 'Differential Equations';
   return parts.length > 2 ? pretty(parts[1]) : subjectTitle(doc);
 }
+export function courseKeyOf(doc) {
+  const parts = (doc.path || '').split('/');
+  const legacySubject = LEGACY_COURSES.get(parts[0].toLowerCase());
+  if (legacySubject) return legacySubject + '/' + (legacySubject === 'cs' ? 'dsa' : 'diffeq');
+  if (parts.length > 2) return parts.slice(0, 2).join('/');
+  if (parts.length === 2) return parts[0];
+  return 'course:' + JSON.stringify([subjectOf(doc), courseOf(doc)]);
+}
 export function topicOf(doc) {
   if (doc.topic || doc.category) return String(doc.topic || doc.category);
   const parts = (doc.path || '').split('/');
@@ -43,11 +51,41 @@ export function pdfURL(value, base) {
 }
 export function normalizeDocuments(data, base) {
   if (!Array.isArray(data.documents)) throw new Error('Invalid notes index');
-  return data.documents.filter(d => d && typeof d.title === 'string' && typeof d.url === 'string')
+  const documents = data.documents.filter(d => d && typeof d.title === 'string' && typeof d.url === 'string')
     .map(d => ({ ...d, path: String(d.path || ''), url: pdfURL(d.url, base) }))
-    .filter(d => d.url).map(d => ({ ...d, course: courseOf(d), subject: subjectOf(d), subjectTitle: subjectTitle(d), topic: topicOf(d),
+    .filter(d => d.url).map(d => ({ ...d, course: courseOf(d), sourceCourse: courseOf(d), courseKey: courseKeyOf(d), subject: subjectOf(d), subjectTitle: subjectTitle(d), topic: topicOf(d),
       addedTime: Number.isFinite(Date.parse(d.added)) ? Date.parse(d.added) : 0,
       searchText: [d.title, courseOf(d), subjectTitle(d), d.semester, d.path, d.search, d.topic, d.category, topicOf(d)].filter(Boolean).join(' ').toLocaleLowerCase() }));
+  for (const group of courseGroups(documents)) {
+    // Notes nearest the course root name the collection. A worksheet's own
+    // course label cannot split a nested folder into another course.
+    const depth = Math.min(...group.notes.map(doc => doc.path.split('/').length));
+    const labels = new Map();
+    for (const doc of group.notes) {
+      if (doc.path.split('/').length === depth) labels.set(doc.sourceCourse, (labels.get(doc.sourceCourse) || 0) + 1);
+    }
+    const name = [...labels].sort(([a, countA], [b, countB]) => countB - countA || a.localeCompare(b))[0][0];
+    const aliases = [...new Set(group.notes.map(doc => doc.sourceCourse))];
+    for (const doc of group.notes) {
+      doc.course = name;
+      doc.courseAliases = aliases;
+      doc.searchText += ' ' + name.toLocaleLowerCase();
+    }
+  }
+  return documents;
+}
+export function courseGroups(documents) {
+  const groups = new Map();
+  for (const doc of documents) {
+    const key = JSON.stringify([doc.subject, doc.courseKey]);
+    if (!groups.has(key)) groups.set(key, { key: doc.courseKey, subject: doc.subject, name: doc.course, notes: [] });
+    groups.get(key).notes.push(doc);
+  }
+  return [...groups.values()].sort((a, b) => a.name.localeCompare(b.name));
+}
+export function matchesCourse(doc, course) {
+  // Accept the old label-based links as well as stable folder-based links.
+  return !course || doc.courseKey === course || doc.course === course || doc.courseAliases?.includes(course);
 }
 export function subjectGroups(documents) {
   const groups = new Map();
@@ -61,7 +99,7 @@ export function filterDocuments(documents, { view = 'all', subject = '', course 
   const terms = query.trim().toLocaleLowerCase().split(/\s+/).filter(Boolean);
   const scope = ['subject', 'course'].includes(view) ? subject : (['all', 'dashboard'].includes(view) ? '' : view);
   return documents.filter(d => (!scope || d.subject === scope)
-    && (!course || d.course === course) && (!topic || d.topic === topic)
+    && matchesCourse(d, course) && (!topic || d.topic === topic)
     && terms.every(term => d.searchText.includes(term)))
     .sort(sort === 'newest' ? (a, b) => b.addedTime - a.addedTime || compareTitles(a, b) : compareTitles);
 }

@@ -1,4 +1,4 @@
-import { subjectGroups, normalizeDocuments, filterDocuments, readRoute, routeHash } from './library.mjs';
+import { courseGroups, matchesCourse, subjectGroups, normalizeDocuments, filterDocuments, readRoute, routeHash } from './library.mjs';
 
 const $ = selector => document.querySelector(selector);
 const icons = {
@@ -116,15 +116,6 @@ $('#sidebar-search').addEventListener('click', () => { closeSidebar(); $('#searc
 
 function courseHref(course, subject) { return routeHash({ view: 'course', course, subject }); }
 function subjectIcon(subject) { return subject === 'cs' ? 'code' : subject === 'math' ? 'math' : 'book'; }
-function courseGroups() {
-  const groups = new Map();
-  for (const doc of documents) {
-    const key = `${doc.subject}:${doc.course}`;
-    if (!groups.has(key)) groups.set(key, { subject: doc.subject, name: doc.course, notes: [] });
-    groups.get(key).notes.push(doc);
-  }
-  return [...groups.values()].sort((a, b) => a.name.localeCompare(b.name));
-}
 function empty(title, description, reset = false) {
   const node = el('div', 'empty-state');
   node.append(icon('book'), el('h3', '', title), el('p', '', description));
@@ -135,7 +126,7 @@ function empty(title, description, reset = false) {
   return node;
 }
 function renderDashboard() {
-  const groups = courseGroups();
+  const groups = courseGroups(documents);
   $('#nav-count').textContent = documents.length;
   const topics = new Set(documents.map(d => d.topic).filter(Boolean));
   $('#stats').replaceChildren(...[
@@ -160,7 +151,7 @@ function renderDashboard() {
     const label = el('h3', 'subject-label'); label.append(icon(subjectIcon(subject)), el('span', '', title));
     const grid = el('div', 'course-grid');
     for (const group of subset) {
-      const card = link('', courseHref(group.name, subject), `course-card ${subject}`);
+      const card = link('', courseHref(group.key, subject), `course-card ${subject}`);
       const top = el('div', 'course-card-top');
       top.append(el('span', 'course-initial', subject === 'cs' ? '{ }' : subject === 'math' ? '∑' : '↗'), icon('arrow'));
       const semesters = [...new Set(group.notes.map(d => d.semester).filter(Boolean))];
@@ -170,7 +161,7 @@ function renderDashboard() {
       [...new Set(group.notes.map(d => d.topic).filter(Boolean))].slice(0, 3).forEach(topic => tags.append(el('span', '', topic)));
       if (!tags.childElementCount) tags.append(el('span', '', 'Course notes'));
       card.append(top, el('h4', '', group.name), meta, tags); grid.append(card);
-      const nav = link('', courseHref(group.name, subject)); nav.title = group.name;
+      const nav = link('', courseHref(group.key, subject)); nav.title = group.name;
       nav.setAttribute('aria-label', group.name);
       nav.append(el('span', 'course-dot'), el('span', 'sidebar-copy course-nav-name', group.name));
       courseList.append(nav);
@@ -205,13 +196,13 @@ function noteCard(doc, compact = false) {
   return article;
 }
 function fillSelect(select, values, selected, allLabel) {
-  select.replaceChildren(new Option(allLabel, ''), ...values.map(value => new Option(value, value)));
+  select.replaceChildren(new Option(allLabel, ''), ...values.map(value => typeof value === 'string' ? new Option(value, value) : new Option(value.name, value.key)));
   select.value = selected;
 }
 function renderLibrary() {
   const scoped = filterDocuments(documents, { view: state.view, subject: state.subject });
-  fillSelect($('#course'), [...new Set(scoped.map(d => d.course))].sort(), state.course, 'All courses');
-  const topicScope = scoped.filter(d => !state.course || d.course === state.course);
+  fillSelect($('#course'), courseGroups(scoped), state.course, 'All courses');
+  const topicScope = scoped.filter(d => matchesCourse(d, state.course));
   fillSelect($('#topic'), [...new Set(topicScope.map(d => d.topic).filter(Boolean))].sort(), state.topic, 'All topics');
   $('#topic').disabled = !topicScope.some(d => d.topic);
   $('#sort').value = state.sort;
@@ -222,14 +213,7 @@ function renderLibrary() {
     $('#results').append(empty('No notes found', documents.length ? 'Try another search term, course, or topic.' : 'There are no compiled notes in the library yet.', Boolean(state.query || state.course || state.topic)));
     return;
   }
-  const groups = new Map();
-  for (const doc of matches) {
-    const key = JSON.stringify([doc.subject, doc.course]);
-    if (!groups.has(key)) groups.set(key, []);
-    groups.get(key).push(doc);
-  }
-  for (const notes of groups.values()) {
-    const course = notes[0].course;
+  for (const { name: course, notes } of courseGroups(matches)) {
     const section = el('section', 'result-group');
     const heading = el('div', 'result-group-heading'); heading.append(el('h2', '', course), el('span', 'count', String(notes.length)));
     if (!state.subject) heading.append(el('span', 'result-subject', notes[0].subjectTitle));
@@ -238,6 +222,13 @@ function renderLibrary() {
 }
 function render() {
   if (!loaded) return;
+  const scoped = filterDocuments(documents, { view: state.view, subject: state.subject });
+  const selectedCourses = state.course ? courseGroups(scoped).filter(group => group.notes.some(doc => matchesCourse(doc, state.course))) : [];
+  const selectedCourse = selectedCourses.length === 1 ? selectedCourses[0] : null;
+  if (selectedCourse && state.course !== selectedCourse.key) {
+    state = { ...state, course: selectedCourse.key };
+    history.replaceState(null, '', routeHash(state));
+  }
   const subject = subjectGroups(documents).find(group => group.key === state.subject);
   const subjectName = subject?.title || state.subject || 'Subject';
   let eyebrow = 'PERSONAL NOTES', title = 'Library', description = '';
@@ -246,7 +237,7 @@ function render() {
   } else if (state.view === 'subject') {
     eyebrow = 'SUBJECT'; title = subjectName;
   } else if (state.view === 'course') {
-    eyebrow = 'COURSE'; title = state.course || 'Course notes'; description = subject ? subjectName : '';
+    eyebrow = 'COURSE'; title = selectedCourse?.name || state.course || 'Course notes'; description = subject ? subjectName : '';
   }
   $('#eyebrow').textContent = eyebrow; $('#page-title').replaceChildren(document.createTextNode(title), el('span', '', '.'));
   $('#page-description').textContent = description;

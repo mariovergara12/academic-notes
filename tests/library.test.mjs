@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { normalizeDocuments, filterDocuments, readRoute, routeHash, subjectOf, topicOf, subjectGroups } from '../website/library.mjs';
+import { courseGroups, normalizeDocuments, filterDocuments, readRoute, routeHash, subjectOf, topicOf, subjectGroups } from '../website/library.mjs';
 const base = 'https://mariovergara12.github.io/academic-notes/';
 const original = [
   { title: 'AVL Trees', course: 'Data Structures & Algorithms', semester: 'Fall 2026', path: 'cs/dsa/02-trees/avl.typ', url: 'pdfs/cs/dsa/02-trees/avl.pdf', search: 'rotations balance height', added: '2026-11-01T12:00:00Z' },
@@ -72,4 +72,54 @@ test('dynamic subject routes round-trip and old subject bookmarks remain valid',
   assert.equal(readRoute('#math').view, 'subject');
   assert.equal(subjectOf({ path: 'constructor/note.typ' }), 'constructor');
   assert.equal(subjectOf({ path: 'note.typ', course: 'General' }), 'general');
+});
+
+test('problem sets stay in the parent course despite a different printed course label', () => {
+  const problemSet = { title: 'Differential Equations: Problem Set 1', course: 'MATH 3341 — Differential Equations',
+    path: 'math/diffeq/problem-sets/01-problem-set.typ', url: 'pdfs/math/diffeq/problem-sets/01-problem-set.pdf' };
+  const input = [problemSet, original[1]];
+  const notes = normalizeDocuments({ documents: input }, base);
+  const groups = courseGroups(notes);
+  assert.equal(groups.length, 1);
+  assert.equal(groups[0].key, 'math/diffeq');
+  assert.equal(groups[0].name, 'Differential Equations');
+  assert.equal(groups[0].notes.length, 2);
+  assert.equal(notes[0].topic, 'Problem Sets');
+  assert.equal(notes[0].sourceCourse, problemSet.course);
+  assert.equal(problemSet.course, 'MATH 3341 — Differential Equations');
+  assert.equal(filterDocuments(notes, { course: 'math/diffeq' }).length, 2);
+  assert.equal(filterDocuments(notes, { course: 'math/diffeq', topic: 'Problem Sets' }).length, 1);
+  assert.equal(filterDocuments(notes, { query: 'MATH 3341' })[0].title, problemSet.title);
+  // Previously shared links to either label still open the complete collection.
+  assert.equal(filterDocuments(notes, { course: problemSet.course }).length, 2);
+  assert.equal(filterDocuments(notes, { course: 'Differential Equations' }).length, 2);
+});
+
+test('collection naming prefers root notes and is independent of index order', () => {
+  const input = [
+    { title: 'Root', course: 'Parent Course', path: 'physics/mechanics/note.typ', url: 'pdfs/root.pdf' },
+    ...['a', 'b', 'c'].map(name => ({ title: name, course: 'Worksheet heading', path: `physics/mechanics/problem-sets/${name}.typ`, url: `pdfs/${name}.pdf` })),
+  ];
+  for (const documents of [input, [...input].reverse()]) {
+    const groups = courseGroups(normalizeDocuments({ documents }, base));
+    assert.equal(groups.length, 1);
+    assert.equal(groups[0].name, 'Parent Course');
+    assert.equal(groups[0].notes.length, 4);
+  }
+});
+
+test('distinct course folders remain separate even when their display labels match', () => {
+  const documents = ['mechanics', 'electromagnetism'].map(folder => ({
+    title: folder, course: 'Physics', path: `physics/${folder}/note.typ`, url: `pdfs/${folder}.pdf`,
+  }));
+  const notes = normalizeDocuments({ documents }, base);
+  assert.equal(courseGroups(notes).length, 2);
+  assert.deepEqual(filterDocuments(notes, { course: 'physics/mechanics' }).map(doc => doc.title), ['mechanics']);
+});
+
+test('indexes without paths keep metadata-based course grouping', () => {
+  const documents = ['Course A', 'Course B'].map((course, i) => ({ title: course, course, url: `pdfs/note-${i}.pdf` }));
+  const notes = normalizeDocuments({ documents }, base);
+  assert.equal(courseGroups(notes).length, 2);
+  assert.equal(filterDocuments(notes, { course: 'Course A' }).length, 1);
 });
